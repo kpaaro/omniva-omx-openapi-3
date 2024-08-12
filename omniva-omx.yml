@@ -1,0 +1,378 @@
+openapi: 3.0.3
+info:
+  title: Omniva OMX API
+  description: "Omniva api"
+  termsOfService: http://swagger.io/terms/
+  contact:
+    email: apiteam@swagger.io
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  version: 1.0.11
+externalDocs:
+  description: OMX documentation
+  url: https://www.omniva.ee/public/files/andmevahetus/OMX-documentation.pdf
+servers:
+  - url: https://test-omx.omniva.eu/api/v01/omx
+    description: Test
+  - url: https://omx.omniva.eu/api/v01/omx
+    description: Prod
+
+paths:
+  /shipments/business-to-client:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateShipmentRequest'
+      responses:
+        200:
+          description: "OK- deletion queued"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Response'
+components:
+  schemas:
+    Response:
+      type: object
+    MainService:
+      type: string
+      enum:
+        - PARCEL
+        - LETTER
+        - PALLET
+    DeliveryChannel:
+      type: string
+      description: |
+        deliveryChannel in mandatory if mainService=PARCEL and delivery country is EE, LT, LV or mainService=LETTER and delivery country is EE Check here for country specific parcel service availability
+      enum: 
+        - COURIER
+        - POST_OFFICE
+        - PARCEL_MACHINE
+    PackageServiceCode:
+      type: string
+      description: | 
+        Possible service package codes if main service is PARCEL: ECONOMY, STANDARD, PREMIUM.
+        Possible service package codes if main service is LETTER: PROCEDURAL_DOCUMENT, REGISTERED_LETTER, REGISTERED_MAXILETTER. 
+        Package availability info for parcels can be found here and for letters here
+      enum:
+        - ECONOMY
+        - STANDARD
+        - PREMIUM
+        - PROCEDURAL_DOCUMENT
+        - REGISTERED_LETTER
+        - REGISTERED_MAXILETTER
+        
+        
+    ServicePackage:
+      description: mandatory if mainService=LETTER or if destination is not EE, LV, LT
+      properties:
+        code: 
+          $ref: '#/components/schemas/PackageServiceCode'
+        allowedStoringPeriod:
+          type: integer
+          description: | 
+           Can be used and is mandatory only if servicePackage =PROCEDURAL_DOCUMENT 
+           if delivery deliveryChannel = COURIER, allowed values: 0, 15, 30 (days)
+           if delivery deliveryChannel = POST_OFFICE, allowed values: 15, 30 (days)
+          enum: 
+          - 15
+          - 30
+          - 0
+    ConsolidatedShipment:
+      properties:
+        barcode:
+          type: string
+          maxLength: 100
+        partnerShipmentId:
+          type: string
+          maxLength: 30
+        addServices:
+          type: array
+          items: 
+            $ref: '#/components/schemas/AdditionalServiceCode'
+    Notification:
+      properties:
+        type: 
+          type: string
+          enum:
+            - REGISTERED
+            - DELIVERED
+        channel:
+          description: | 
+            'sms' or 'email'. If notification chosen, senderAddressee contactMobile and/or contactEmail field must be filled
+          type: string
+          enum: 
+            - sms
+            - email
+    AdditionalServiceCode:
+      type: string
+      externalDocs:
+        url: https://www.omniva.ee/public/files/andmevahetus/service-availability.pdf
+      enum:
+        - DELIVERY_TO_PRIVATE_PERSON
+        - COD
+        - DELIVERY_ON_SATURDAY
+        - DELIVERY_TO_A_SPECIFIC_PERSON
+        - FRAGILE
+        - INSURANCE
+        - DOCUMENT_RETURN
+        - SAME_DAY_DELIVERY
+        - DELIVERY_BEFORE_10_00
+        - TWO_COURIER_DROP_OFF
+        - DELIVERY_TO_AN_ADULT
+        - paidByReceiver
+        - returnAllowed
+    AdditionalService:
+      properties:
+        code:
+          $ref: '#/components/schemas/AdditionalServiceCode'
+        params: 
+          properties:
+            COD_RECEIVER:
+              type: string
+              maxLength: 50
+            COD_AMOUNT:
+              type: number
+            COD_BANK_ACCOUNT_NO:
+              type: string
+              maxLength:  30
+            COD_REF_NUMBER:
+              type: string
+              maxLength: 30
+            INSURANCE_VALUE:
+              type: number
+            DELIVERY_TO_SPECIFIC_PERSON_PERSONAL_CODE:
+              type: string
+              maxLength: 11
+    Measurement:
+      properties:
+        weight:
+         type: number
+        length:
+          type: number
+        width: 
+         type: number
+        height:
+          type: number
+    Address:
+      required: 
+        - country
+        - postcode
+      properties:
+        street:
+          type: string
+          maxLength: 80
+        houseNo: 
+          type: string
+          maxLength: 20
+        apartmentNo: 
+          type: string
+          maxLength: 20 
+        deliverypoint:
+          type: string
+          maxLength: 80
+          description: City, small town, village, rural municipality, county. mandatory if offloadPostcode is not present
+        postcode:
+          type: string
+          maxLength: 10
+        country:
+          type: string
+          maxLength:  2
+          description: "2-letter country code (ISO 3166-1 alpha-2) example: EE - Estonia. Mandatory"
+          pattern: '[a-z]{2}'
+       
+    ReceiverAddress:
+      allOf:
+        - $ref: '#/components/schemas/Address'
+        - properties: 
+            offloadPostcode:
+              description: |
+                Post office/parcel machine/pickup point postcode for describing the delivery office – customer will get it from this location. Can be used if main service is PARCEL and delivery channel is PARCEL_MACHINE (offloadPostcode is mandatory), POST_OFFICE main service is LETTER, service package is PROCEDURAL_DOCUMENT (offloadPostcode is mandatory) or REGISTERED_LETTER and delivery channel is POST_OFFICE
+              type: string
+              maxLength: 10
+    SenderAddressee:
+      required: 
+        - personName
+      properties:
+        personName:
+          type: string
+          maxLength: 50
+        altName:
+          type: string
+          maxLength: 50
+        contactPhone:
+          type: string
+          maxLength: 12
+        contactMobile:
+          type: string
+          maxLength: 12
+        contactEmail: 
+          type: string
+          maxLength: 50
+        useSenderAddressForReturn:
+          type: boolean
+          description: | 
+            If True, sender address will be used for return address for both customer return and automatic return. Default value false (in this case shipments are returned to handover location or to address pre-defined in customer account settings)
+        address:
+          $ref: '#/components/schemas/Address'
+    ReceiverAddressee:
+      required: 
+        - personName
+      properties:
+        useCustomerCode:
+          type: boolean
+        companyName:
+          type: string
+          maxLength: 50
+        personName:
+          type: string
+          maxLength: 50
+        contactPhone:
+          type: string
+          maxLength: 12
+        contactMobile:
+          type: string
+          maxLength: 12
+        contactEmail: 
+          type: string
+          maxLength: 50
+        address:
+          $ref: '#/components/schemas/ReceiverAddress'
+    ShipmentItem:
+      required: 
+        - description
+        - numberOfPieces
+        - weigth
+        - finacialValue
+        - tariffNumber
+      type: object
+      properties:
+        description:
+          type: string
+          maxLength: 250
+        numberOfPieces:
+          type: integer
+        weight:
+          type: number
+        financialValue:
+          type: number
+        tariffNumber:
+          type: string
+          maxLength: 10
+        originCountry:
+          type: string
+          maxLength:  2
+          description: "2-letter country code (ISO 3166-1 alpha-2) example: EE - Estonia. Mandatory"
+          pattern: '[a-z]{2}'
+    Shipment:
+      required: 
+        - mainService
+      properties:
+        barcode:
+          type: string
+          maxLength: 100
+        partnerShipmentId:
+          type: string
+          maxLength: 30
+        mainService:
+          $ref: '#/components/schemas/MainService'
+        deliveryChannel:
+          $ref: '#/components/schemas/DeliveryChannel'
+        servicePackage:
+          $ref: '#/components/schemas/ServicePackage'
+        shipmentComment:
+          type: string
+          maxLength: 128
+        returnAllowed:
+          type: boolean
+          description: |
+            Boolean, whether the customer return is allowed and return code shown in receiver notifications or not. If element does not exist then preference in customer settings is used. General value can be changed in self service. Value always considered as FALSE if mainService=LETTER
+        customerReturn:
+          description: Set true if you are registering a return shipment
+          type: boolean
+        paidByReceiver:
+          description: | 
+            Boolean whether shipment is paid by sender or reciever can be true only if mainService=PARCEL or PALLET, see here for availability details. If element does not exist, default value=false
+          type: boolean
+        consolidatedShipments:
+          items:
+            $ref: '#/components/schemas/ConsolidatedShipment'
+        notifications:
+          items:
+            $ref: '#/components/schemas/Notification'
+        addServices:
+          items:
+            $ref: '#/components/schemas/AdditionalService'
+        measurement:
+          $ref: '#/components/schemas/Measurement'
+        receiverAddressee:
+          $ref: '#/components/schemas/ReceiverAddressee'
+        senderAddressee:
+          $ref: '#/components/schemas/SenderAddressee' 
+        customs:
+          $ref: '#/components/schemas/Customs'
+      
+    Customs:
+      description: customs block must be filled if destination country is outside EU
+      required:
+        - goodsCategoryCode
+      properties: 
+        goodsCategoryCode:
+          type: string
+          enum:
+            - SALE_OF_GOODS
+            - GIFT
+            - COMMERCIAL_SAMPLE
+            - DOCUMENTS
+            - RETURNED_GOODS
+            - OTHER
+        categoryExplanation:
+          description: Must be filled if goodsCategoryCode is „OTHER“
+          type: string
+          maxLength: 40
+        licenceNumber: 
+          type: string
+          maxLength: 21 
+        certificateNumber:
+          type: string
+          maxLength: 21
+        invoiceNumber:
+          type: string
+          maxLength: 21
+        senderCustomsReference: 
+          type: string
+          maxLength: 12
+        importersReference:
+          type: string
+          maxLength: 21
+        shipmentItems:
+          items:
+            $ref: '#/components/schemas/ShipmentItem'
+        
+      
+    CreateShipmentRequest:
+      required: 
+        - customerCode
+      properties:
+        customerCode:
+          type: string
+          maxLength: 30
+        fileId:
+          type: string
+          maxLength: 14
+        shipments:
+          items: 
+            $ref: '#/components/schemas/Shipment'
+        
+          
+  securitySchemes:
+    omx_auth:
+      type: http
+      scheme: basic
+security:
+  - omx_auth: []  
